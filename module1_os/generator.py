@@ -1,87 +1,134 @@
-import os
 import random
-import numpy as np
-import pandas as pd
-from module1_os.process import Process
+import csv
+import os
 
-PROCESS_PROFILES = {
-    'cpu_bound': {
-        'cpu_burst_range': (20, 50), 'io_freq_range': (0.0, 0.2),
-        'memory_range': (256, 2048), 'thread_range': (2, 16),
-        'priority_range': (8, 20), 'weight': 0.25,
-    },
-    'io_bound': {
-        'cpu_burst_range': (1, 8), 'io_freq_range': (0.6, 1.0),
-        'memory_range': (10, 256), 'thread_range': (1, 4),
-        'priority_range': (1, 10), 'weight': 0.30,
-    },
-    'mixed': {
-        'cpu_burst_range': (8, 25), 'io_freq_range': (0.3, 0.6),
-        'memory_range': (128, 1024), 'thread_range': (1, 8),
-        'priority_range': (5, 15), 'weight': 0.30,
-    },
-    'interactive': {
-        'cpu_burst_range': (1, 5), 'io_freq_range': (0.4, 0.8),
-        'memory_range': (50, 512), 'thread_range': (1, 4),
-        'priority_range': (1, 5), 'weight': 0.15,
-    },
-}
+from .process import Process
 
 
-def generate_process(pid, process_type, arrival_time):
-    profile = PROCESS_PROFILES[process_type]
-    base_burst = random.randint(*profile['cpu_burst_range'])
-    burst_range_width = profile['cpu_burst_range'][1] - profile['cpu_burst_range'][0]
-    noise = np.random.normal(0, burst_range_width * 0.15)
-    cpu_burst = max(1, int(base_burst + noise))
+# Generate one process
+def generate_process(pid, current_time):
+    process_types = ["cpu_bound", "io_bound", "mixed", "interactive"]
+
+    process_type = random.choice(process_types)
+
+    # Generate attributes based on process type
+    if process_type == "cpu_bound":
+        cpu_burst = random.randint(20, 50)
+        io_frequency = random.randint(0, 2)
+        memory_mb = random.randint(400, 1000)
+        priority = random.randint(3, 8)
+
+    elif process_type == "io_bound":
+        cpu_burst = random.randint(1, 8)
+        io_frequency = random.randint(5, 10)
+        memory_mb = random.randint(100, 400)
+        priority = random.randint(2, 7)
+
+    elif process_type == "mixed":
+        cpu_burst = random.randint(8, 25)
+        io_frequency = random.randint(2, 5)
+        memory_mb = random.randint(200, 700)
+        priority = random.randint(2, 8)
+
+    else:  # interactive
+        cpu_burst = random.randint(1, 5)
+        io_frequency = random.randint(4, 10)
+        memory_mb = random.randint(100, 300)
+        priority = random.randint(1, 4)
+
+    num_threads = random.randint(1, 8)
+
     return Process(
-        pid=pid, process_type=process_type,
-        priority=random.randint(*profile['priority_range']),
-        arrival_time=arrival_time, cpu_burst=cpu_burst,
-        io_frequency=round(random.uniform(*profile['io_freq_range']), 2),
-        memory_mb=random.randint(*profile['memory_range']),
-        num_threads=random.randint(*profile['thread_range']),
+        pid=pid,
+        process_type=process_type,
+        priority=priority,
+        arrival_time=current_time,
+        cpu_burst=cpu_burst,
+        io_frequency=io_frequency,
+        memory_mb=memory_mb,
+        num_threads=num_threads
     )
 
 
-def generate_dataset(count=2500, seed=42):
+# Generate multiple processes
+def generate_processes(num_processes=2500, seed=42):
     random.seed(seed)
-    np.random.seed(seed)
-    types = list(PROCESS_PROFILES.keys())
-    weights = [PROCESS_PROFILES[t]['weight'] for t in types]
+
     processes = []
-    for pid in range(1, count + 1):
-        process_type = random.choices(types, weights=weights, k=1)[0]
-        arrival_time = int(np.random.exponential(scale=count * 0.1))
-        processes.append(generate_process(pid, process_type, arrival_time))
-    processes.sort(key=lambda p: (p.arrival_time, p.pid))
+    current_time = 0
+
+    for pid in range(1, num_processes + 1):
+
+        # Random arrival time
+        current_time += random.randint(0, 3)
+
+        process = generate_process(pid, current_time)
+        processes.append(process)
+
+    # Sort by arrival time
+    processes.sort(key=lambda p: p.arrival_time)
+
     return processes
 
 
-def save_to_csv(processes, filepath='data/processes.csv'):
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    df = pd.DataFrame([p.to_dict() for p in processes])
-    df.to_csv(filepath, index=False)
-    print(f"[✓] Saved {len(processes)} processes to {filepath}")
-    print(f"    Burst stats: mean={df['cpu_burst'].mean():.1f}, "
-          f"min={df['cpu_burst'].min()}, max={df['cpu_burst'].max()}")
+# Save processes to CSV
+def save_to_csv(processes, filename="data/processes.csv"):
+
+    # Create folder if it doesn't exist
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+
+    with open(filename, "w", newline="") as file:
+
+        writer = csv.writer(file)
+
+        # CSV header
+        writer.writerow([
+            "pid",
+            "process_type",
+            "priority",
+            "arrival_time",
+            "cpu_burst",
+            "io_frequency",
+            "memory_mb",
+            "num_threads"
+        ])
+
+        # Write process data
+        for p in processes:
+            writer.writerow([
+                p.pid,
+                p.process_type,
+                p.priority,
+                p.arrival_time,
+                p.cpu_burst,
+                p.io_frequency,
+                p.memory_mb,
+                p.num_threads
+            ])
 
 
-def load_from_csv(filepath='data/processes.csv'):
-    df = pd.read_csv(filepath)
+# Load processes from CSV
+def load_from_csv(filename="data/processes.csv"):
+
     processes = []
-    for _, row in df.iterrows():
-        p = Process(
-            pid=int(row['pid']), process_type=row['process_type'],
-            priority=int(row['priority']), arrival_time=int(row['arrival_time']),
-            cpu_burst=int(row['cpu_burst']), io_frequency=float(row['io_frequency']),
-            memory_mb=int(row['memory_mb']), num_threads=int(row['num_threads']),
-        )
-        processes.append(p)
-    processes.sort(key=lambda p: (p.arrival_time, p.pid))
+
+    with open(filename, "r") as file:
+
+        reader = csv.DictReader(file)
+
+        for row in reader:
+
+            process = Process(
+                pid=int(row["pid"]),
+                process_type=row["process_type"],
+                priority=int(row["priority"]),
+                arrival_time=int(row["arrival_time"]),
+                cpu_burst=int(row["cpu_burst"]),
+                io_frequency=int(row["io_frequency"]),
+                memory_mb=int(row["memory_mb"]),
+                num_threads=int(row["num_threads"])
+            )
+
+            processes.append(process)
+
     return processes
-
-
-if __name__ == '__main__':
-    processes = generate_dataset(count=2500, seed=42)
-    save_to_csv(processes)
