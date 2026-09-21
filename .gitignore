@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Raw Large Datasets
+data/*.csv.gz
+data/*.gz
+
+# OS / IDE
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

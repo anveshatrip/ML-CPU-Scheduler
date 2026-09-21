@@ -1,0 +1,27 @@
+{
+  "mae": 5.0927,
+  "rmse": 7.4411,
+  "r2": 0.7366,
+  "feature_importances": {
+    "process_type_mixed": 0.6292,
+    "process_type_cpu_bound": 0.235,
+    "io_frequency": 0.0854,
+    "process_type_interactive": 0.0131,
+    "memory_mb": 0.0126,
+    "process_type_io_bound": 0.01,
+    "num_threads": 0.008,
+    "priority": 0.0067
+  },
+  "train_samples": 2000,
+  "test_samples": 500,
+  "params": {
+    "n_estimators": 200,
+    "max_depth": 6,
+    "learning_rate": 0.1,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "reg_alpha": 0.1,
+    "reg_lambda": 1.0,
+    "random_state": 42
+  }
+}
