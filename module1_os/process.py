@@ -28,3 +28,16 @@ class Process:
         self.turnaround_time = 0
         self.response_time = 0
         self.remaining_burst = cpu_burst
+
+    def to_dict(self):
+        """Convert process attributes to a dictionary for ML model input."""
+        return {
+            'pid': self.pid,
+            'process_type': self.process_type,
+            'priority': self.priority,
+            'arrival_time': self.arrival_time,
+            'cpu_burst': self.cpu_burst,
+            'io_frequency': self.io_frequency,
+            'memory_mb': self.memory_mb,
+            'num_threads': self.num_threads,
+        }
