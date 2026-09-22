@@ -1,0 +1,9 @@
+{
+  "mae": 12.1364,
+  "rmse": 14.5045,
+  "r2": -0.0375,
+  "sequence_length": 5,
+  "total_params": 54337,
+  "epochs": 50,
+  "device": "cpu"
+}

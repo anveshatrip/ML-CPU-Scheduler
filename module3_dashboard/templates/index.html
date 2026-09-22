@@ -4,9 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI CPU Scheduler — Dashboard</title>
-  <!-- Chart.js for bar charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-  <!-- Our custom styles -->
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -14,8 +12,8 @@
   <!-- HEADER -->
   <header class="header">
     <div class="header-content">
-      <h1>🧠 AI-Powered CPU Scheduler</h1>
-      <p class="subtitle">ML-Enhanced Process Scheduling with XGBoost, LSTM &amp; DQN</p>
+      <h1>&#129504; AI-Powered CPU Scheduler</h1>
+      <p class="subtitle">ML-Enhanced Process Scheduling with XGBoost, LSTM &amp; Deep Q-Networks</p>
     </div>
   </header>
 
@@ -23,37 +21,35 @@
 
     <!-- SECTION 1: CONTROLS -->
     <section class="card controls-card">
-      <h2>⚙️ Simulation Controls</h2>
+      <h2>&#9881;&#65039; Simulation Controls</h2>
       <div class="controls-grid">
         <div class="control-group">
           <label for="num-processes">Number of Processes</label>
-          <input type="range" id="num-processes" min="10" max="200" value="50">
-          <span id="num-processes-val" class="slider-value">50</span>
+          <input type="number" id="num-processes" class="seed-input" placeholder="e.g. 50" min="10" max="200">
         </div>
         <div class="control-group">
           <label for="quantum">Time Quantum (RR)</label>
-          <input type="range" id="quantum" min="1" max="20" value="4">
-          <span id="quantum-val" class="slider-value">4</span>
+          <input type="number" id="quantum" class="seed-input" placeholder="e.g. 4" min="1" max="20">
         </div>
         <div class="control-group">
           <label for="seed">Random Seed</label>
-          <input type="number" id="seed" class="seed-input" value="42" min="1" max="9999">
+          <input type="number" id="seed" class="seed-input" placeholder="e.g. 42" min="1" max="9999">
         </div>
         <div class="control-group">
-          <button id="run-btn" class="run-button" onclick="runSimulation()">▶ Run Simulation</button>
+          <button id="run-btn" class="run-button" onclick="runSimulation()">&#9654; Run Simulation</button>
         </div>
       </div>
     </section>
 
     <!-- SECTION 2: METRICS SUMMARY CARDS -->
     <section class="card" id="metrics-section" style="display:none;">
-      <h2>📊 Performance Summary</h2>
+      <h2>&#128202; Performance Summary</h2>
       <div class="metrics-cards-row" id="metrics-cards"><!-- Populated by JS --></div>
     </section>
 
     <!-- SECTION 3: COMPARISON BAR CHARTS -->
     <section class="card" id="charts-section" style="display:none;">
-      <h2>📈 Algorithm Comparison</h2>
+      <h2>&#128200; Algorithm Comparison</h2>
       <div class="charts-grid">
         <div class="chart-wrapper"><canvas id="waiting-chart"></canvas></div>
         <div class="chart-wrapper"><canvas id="turnaround-chart"></canvas></div>
@@ -62,9 +58,19 @@
       </div>
     </section>
 
-    <!-- SECTION 4: GANTT CHART -->
+    <!-- SECTION 4: MULTI-OBJECTIVE PARETO ANALYSIS -->
+    <section class="card" id="pareto-section" style="display:none;">
+      <h2>&#127919; Multi-Objective Optimization (Research Contribution)</h2>
+      <div class="pareto-grid">
+        <div class="pareto-wrapper"><canvas id="pareto-chart-1"></canvas></div>
+        <div class="pareto-wrapper"><canvas id="pareto-chart-2"></canvas></div>
+      </div>
+      <div class="pareto-score-row" id="pareto-scores"><!-- Populated by JS --></div>
+    </section>
+
+    <!-- SECTION 5: GANTT CHART -->
     <section class="card" id="gantt-section" style="display:none;">
-      <h2>📅 Gantt Chart</h2>
+      <h2>&#128197; Gantt Chart</h2>
       <div class="gantt-controls">
         <label for="gantt-algo-select">Select Algorithm:</label>
         <select id="gantt-algo-select" onchange="renderGantt()"></select>
@@ -73,13 +79,13 @@
       <div class="gantt-legend" id="gantt-legend"></div>
     </section>
 
-    <!-- SECTION 5: SCHEDULING ANIMATION -->
+    <!-- SECTION 6: SCHEDULING ANIMATION -->
     <section class="card" id="animation-section" style="display:none;">
-      <h2>🎬 Scheduling Animation</h2>
+      <h2>&#127916; Scheduling Animation</h2>
       <div class="animation-controls">
         <select id="anim-algo-select"></select>
-        <button id="anim-play-btn" onclick="toggleAnimation()">▶ Play</button>
-        <button onclick="resetAnimation()">⏮ Reset</button>
+        <button id="anim-play-btn" onclick="toggleAnimation()">&#9654; Play</button>
+        <button onclick="resetAnimation()">&#9198; Reset</button>
         <label>Speed:
           <input type="range" id="anim-speed" min="50" max="1000" value="300">
         </label>
@@ -92,18 +98,15 @@
       </div>
     </section>
 
-    <!-- SECTION 6: ML MODEL CARD -->
+    <!-- SECTION 7: ML MODEL CARD -->
     <section class="card" id="model-section" style="display:none;">
-      <h2>🤖 ML Model Performance</h2>
+      <h2>&#129302; ML Model Performance</h2>
       <div class="model-cards-row" id="model-cards"><!-- Populated by JS --></div>
-      <div class="chart-wrapper" style="max-width: 600px; margin: 1rem auto;">
-        <canvas id="feature-importance-chart"></canvas>
-      </div>
     </section>
 
-    <!-- SECTION 7: PROCESS TABLE -->
+    <!-- SECTION 8: PROCESS TABLE -->
     <section class="card" id="table-section" style="display:none;">
-      <h2>📋 Process Details</h2>
+      <h2>&#128203; Process Details</h2>
       <div class="table-container">
         <table id="process-table">
           <thead>
@@ -130,7 +133,6 @@
     <p>BCSE303P — Operating Systems Lab | VIT</p>
   </footer>
 
-  <!-- Our scripts (order matters — app.js first, then animation.js) -->
   <script src="/static/app.js"></script>
   <script src="/static/animation.js"></script>
 </body>
