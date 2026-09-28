@@ -10,48 +10,34 @@ class FCFSScheduler(BaseScheduler):
 
     def schedule(self, processes):
 
-        # Make a copy so the original processes are not changed
         processes = deepcopy(processes)
-
-        # Sort processes according to arrival time
         processes.sort(key=lambda p: p.arrival_time)
 
         current_time = 0
+        execution_log = []
 
         for process in processes:
 
-            # If CPU is idle, move time to process arrival
             if current_time < process.arrival_time:
+                for t in range(current_time, process.arrival_time):
+                    execution_log.append({"time": t, "pid": None})
                 current_time = process.arrival_time
 
-            # Process starts
             process.start_time = current_time
+            process.response_time = process.start_time - process.arrival_time
 
-            # Response time
-            process.response_time = (
-                process.start_time - process.arrival_time
-            )
+            for t in range(current_time, current_time + process.cpu_burst):
+                execution_log.append({"time": t, "pid": process.pid})
 
-            # Process executes completely
             current_time += process.cpu_burst
-
-            # Process completes
             process.completion_time = current_time
-
-            # Turnaround time
-            process.turnaround_time = (
-                process.completion_time - process.arrival_time
-            )
-
-            # Waiting time
-            process.waiting_time = (
-                process.turnaround_time - process.cpu_burst
-            )
-
-            # No remaining burst after completion
+            process.turnaround_time = process.completion_time - process.arrival_time
+            process.waiting_time = process.turnaround_time - process.cpu_burst
             process.remaining_burst = 0
 
         return ScheduleResult(
             processes=processes,
-            total_time=current_time
+            total_time=current_time,
+            algorithm_name="FCFS",
+            execution_log=execution_log,
         )

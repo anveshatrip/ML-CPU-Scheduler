@@ -17,61 +17,42 @@ class SJFScheduler(BaseScheduler):
 
         scheduled = []
         current_time = 0
+        execution_log = []
 
         while remaining:
 
-            # Find processes that have already arrived
             available = [
                 p for p in remaining
                 if p.arrival_time <= current_time
             ]
 
-            # If no process has arrived yet, move time forward
             if not available:
-                current_time = min(
-                    p.arrival_time for p in remaining
-                )
+                next_arrival = min(p.arrival_time for p in remaining)
+                for t in range(current_time, next_arrival):
+                    execution_log.append({"time": t, "pid": None})
+                current_time = next_arrival
                 continue
 
-            # Select the process with the shortest CPU burst
-            process = min(
-                available,
-                key=lambda p: p.cpu_burst
-            )
-
-            # Remove it from the remaining list
+            process = min(available, key=lambda p: p.cpu_burst)
             remaining.remove(process)
 
-            # Process starts
             process.start_time = current_time
+            process.response_time = process.start_time - process.arrival_time
 
-            # Response time
-            process.response_time = (
-                process.start_time - process.arrival_time
-            )
+            for t in range(current_time, current_time + process.cpu_burst):
+                execution_log.append({"time": t, "pid": process.pid})
 
-            # Execute completely
             current_time += process.cpu_burst
-
-            # Process completes
             process.completion_time = current_time
-
-            # Turnaround time
-            process.turnaround_time = (
-                process.completion_time - process.arrival_time
-            )
-
-            # Waiting time
-            process.waiting_time = (
-                process.turnaround_time - process.cpu_burst
-            )
-
-            # Process has finished
+            process.turnaround_time = process.completion_time - process.arrival_time
+            process.waiting_time = process.turnaround_time - process.cpu_burst
             process.remaining_burst = 0
 
             scheduled.append(process)
 
         return ScheduleResult(
             processes=scheduled,
-            total_time=current_time
+            total_time=current_time,
+            algorithm_name="SJF",
+            execution_log=execution_log,
         )

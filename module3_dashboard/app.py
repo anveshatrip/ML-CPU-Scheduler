@@ -92,15 +92,8 @@ def run_benchmark():
         elif algo_name == "Round Robin":
             algo_name = f"Round Robin (q={quantum})"
 
-        # If execution_log is empty (Module 1 schedulers), construct from start/completion times
-        log = result.execution_log
-        if not log:
-            log = []
-            for p in sorted(result.processes, key=lambda x: x.start_time):
-                for t in range(p.start_time, p.completion_time):
-                    log.append({"time": t, "pid": p.pid})
-
-        gantt_data[algo_name] = log[:80]  # First 80 ticks for clean Gantt rendering
+        # Use the scheduler's execution_log for the Gantt (tick-accurate, shows preemptions)
+        gantt_data[algo_name] = result.execution_log[:80]
 
         all_metrics.append({
             "algorithm": algo_name,
