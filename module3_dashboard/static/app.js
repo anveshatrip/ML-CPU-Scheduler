@@ -13,15 +13,15 @@
 let benchmarkData = null;
 let chartInstances = {};
 
-// High-contrast color palette — every algorithm is visually distinct
+// Warm earth-tone palette — matches CSS variables
 const ALGO_COLORS = {
-  'FCFS':               '#ef4444',  // bright red
-  'SJF (Known Burst)':  '#22c55e',  // bright green
-  'Priority':           '#f97316',  // orange
-  'Round Robin (q=4)':  '#eab308',  // gold/yellow
-  'XGBoost-SJF':        '#3b82f6',  // strong blue
-  'LSTM-SJF':           '#8b5cf6',  // purple
-  'DQN Scheduler':      '#ec4899',  // hot pink
+  'FCFS':               '#c0392b',   // brick red
+  'SJF (Known Burst)':  '#2e7d32',   // forest green
+  'Priority':           '#d4750a',   // amber
+  'Round Robin (q=4)':  '#6d4c41',   // warm brown
+  'XGBoost-SJF':        '#1565c0',   // strong blue
+  'LSTM-SJF':           '#6a1b9a',   // plum
+  'DQN Scheduler':      '#00695c',   // teal
 };
 
 function getAlgoColor(name) {
@@ -153,7 +153,7 @@ function renderComparisonCharts(metrics) {
           backgroundColor: bgColors,
           borderColor: borders,
           borderWidth: 2,
-          borderRadius: 8,
+          borderRadius: 6,
           barPercentage: 0.7,
         }],
       },
@@ -165,37 +165,41 @@ function renderComparisonCharts(metrics) {
           title: {
             display: true,
             text: title,
-            color: '#eaeaf2',
-            font: { size: 15, weight: '700' },
+            color: '#1a1916',
+            font: { size: 13, weight: '700' },
             padding: { bottom: 15 },
           },
           legend: { display: false },
           tooltip: {
-            backgroundColor: '#1e1e3a',
-            titleFont: { size: 13 },
+            backgroundColor: '#fff',
+            titleColor: '#1a1916',
+            bodyColor: '#6b6861',
+            titleFont: { size: 12, weight: '700' },
             bodyFont: { size: 12 },
-            borderColor: '#4a9eff',
+            borderColor: '#e4e2db',
             borderWidth: 1,
             padding: 10,
-            cornerRadius: 8,
+            cornerRadius: 6,
           },
         },
         scales: {
           x: {
             ticks: {
-              color: '#8888a8',
+              color: '#6b6861',
               font: { size: 10, weight: '600' },
               maxRotation: 35,
               minRotation: 20,
             },
             grid: { display: false },
+            border: { color: '#e4e2db' },
           },
           y: {
             ticks: {
-              color: '#8888a8',
+              color: '#6b6861',
               font: { size: 11 },
             },
-            grid: { color: 'rgba(255,255,255,0.04)' },
+            grid: { color: 'rgba(0,0,0,0.05)' },
+            border: { color: '#e4e2db' },
           },
         },
       },
@@ -228,7 +232,7 @@ function renderParetoAnalysis(metrics) {
       datasets: metrics.map((m, i) => ({
         label: m.algorithm,
         data: [{ x: m.avg_waiting_time, y: m.fairness_index }],
-        backgroundColor: getAlgoColor(m.algorithm),
+        backgroundColor: getAlgoColor(m.algorithm) + 'cc',
         borderColor: getAlgoColor(m.algorithm),
         pointRadius: 10,
         pointHoverRadius: 14,
@@ -243,26 +247,28 @@ function renderParetoAnalysis(metrics) {
         title: {
           display: true,
           text: 'Trade-off: Waiting Time vs Fairness',
-          color: '#eaeaf2',
-          font: { size: 15, weight: '700' },
+          color: '#1a1916',
+          font: { size: 13, weight: '700' },
           padding: { bottom: 10 },
         },
         legend: {
           display: true,
           position: 'bottom',
           labels: {
-            color: '#8888a8',
+            color: '#6b6861',
             font: { size: 10 },
             usePointStyle: true,
             padding: 12,
           },
         },
         tooltip: {
-          backgroundColor: '#1e1e3a',
-          borderColor: '#8b5cf6',
+          backgroundColor: '#fff',
+          titleColor: '#1a1916',
+          bodyColor: '#6b6861',
+          borderColor: '#e4e2db',
           borderWidth: 1,
           padding: 10,
-          cornerRadius: 8,
+          cornerRadius: 6,
           callbacks: {
             label: function(ctx) {
               const m = metrics[ctx.datasetIndex];
@@ -273,15 +279,16 @@ function renderParetoAnalysis(metrics) {
       },
       scales: {
         x: {
-          title: { display: true, text: 'Avg Waiting Time (lower = better)', color: '#8888a8', font: { size: 12 } },
-          ticks: { color: '#8888a8' },
-          grid: { color: 'rgba(255,255,255,0.04)' },
-          reverse: false,
+          title: { display: true, text: 'Avg Waiting Time (lower = better)', color: '#6b6861', font: { size: 11 } },
+          ticks: { color: '#6b6861' },
+          grid: { color: 'rgba(0,0,0,0.05)' },
+          border: { color: '#e4e2db' },
         },
         y: {
-          title: { display: true, text: 'Fairness Index (higher = better)', color: '#8888a8', font: { size: 12 } },
-          ticks: { color: '#8888a8' },
-          grid: { color: 'rgba(255,255,255,0.04)' },
+          title: { display: true, text: 'Fairness Index (higher = better)', color: '#6b6861', font: { size: 11 } },
+          ticks: { color: '#6b6861' },
+          grid: { color: 'rgba(0,0,0,0.05)' },
+          border: { color: '#e4e2db' },
         },
       },
     },
@@ -297,7 +304,7 @@ function renderParetoAnalysis(metrics) {
       datasets: metrics.map((m, i) => ({
         label: m.algorithm,
         data: [{ x: m.avg_waiting_time, y: m.avg_response_time }],
-        backgroundColor: getAlgoColor(m.algorithm),
+        backgroundColor: getAlgoColor(m.algorithm) + 'cc',
         borderColor: getAlgoColor(m.algorithm),
         pointRadius: 10,
         pointHoverRadius: 14,
@@ -312,26 +319,28 @@ function renderParetoAnalysis(metrics) {
         title: {
           display: true,
           text: 'Trade-off: Waiting Time vs Response Time',
-          color: '#eaeaf2',
-          font: { size: 15, weight: '700' },
+          color: '#1a1916',
+          font: { size: 13, weight: '700' },
           padding: { bottom: 10 },
         },
         legend: {
           display: true,
           position: 'bottom',
           labels: {
-            color: '#8888a8',
+            color: '#6b6861',
             font: { size: 10 },
             usePointStyle: true,
             padding: 12,
           },
         },
         tooltip: {
-          backgroundColor: '#1e1e3a',
-          borderColor: '#8b5cf6',
+          backgroundColor: '#fff',
+          titleColor: '#1a1916',
+          bodyColor: '#6b6861',
+          borderColor: '#e4e2db',
           borderWidth: 1,
           padding: 10,
-          cornerRadius: 8,
+          cornerRadius: 6,
           callbacks: {
             label: function(ctx) {
               const m = metrics[ctx.datasetIndex];
@@ -342,14 +351,16 @@ function renderParetoAnalysis(metrics) {
       },
       scales: {
         x: {
-          title: { display: true, text: 'Avg Waiting Time (lower = better)', color: '#8888a8', font: { size: 12 } },
-          ticks: { color: '#8888a8' },
-          grid: { color: 'rgba(255,255,255,0.04)' },
+          title: { display: true, text: 'Avg Waiting Time (lower = better)', color: '#6b6861', font: { size: 11 } },
+          ticks: { color: '#6b6861' },
+          grid: { color: 'rgba(0,0,0,0.05)' },
+          border: { color: '#e4e2db' },
         },
         y: {
-          title: { display: true, text: 'Avg Response Time (lower = better)', color: '#8888a8', font: { size: 12 } },
-          ticks: { color: '#8888a8' },
-          grid: { color: 'rgba(255,255,255,0.04)' },
+          title: { display: true, text: 'Avg Response Time (lower = better)', color: '#6b6861', font: { size: 11 } },
+          ticks: { color: '#6b6861' },
+          grid: { color: 'rgba(0,0,0,0.05)' },
+          border: { color: '#e4e2db' },
         },
       },
     },
