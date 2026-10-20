@@ -124,7 +124,7 @@ def load_from_csv(filename="data/processes.csv"):
                 priority=int(row["priority"]),
                 arrival_time=int(row["arrival_time"]),
                 cpu_burst=int(row["cpu_burst"]),
-                io_frequency=int(row["io_frequency"]),
+                io_frequency=float(row["io_frequency"]),
                 memory_mb=int(row["memory_mb"]),
                 num_threads=int(row["num_threads"])
             )
@@ -132,3 +132,33 @@ def load_from_csv(filename="data/processes.csv"):
             processes.append(process)
 
     return processes
+
+
+# Load processes from the Google Cluster Trace dataset
+def load_google_trace_processes(num_processes=50, seed=None, filename="data/processes.csv"):
+    """
+    Load real processes from the Google Cluster Trace 2011 dataset.
+    
+    Args:
+        num_processes: Number of processes to load (default 50)
+        seed: Random seed for deterministic sample selection across classes
+        filename: Path to the Google processes CSV file
+    """
+    all_processes = load_from_csv(filename)
+    if not all_processes:
+        return []
+
+    if num_processes is None or num_processes >= len(all_processes):
+        return all_processes
+
+    if seed is not None:
+        rng = random.Random(seed)
+        # Stratified sampling by process_type if possible, or deterministic slice
+        selected = rng.sample(all_processes, num_processes)
+        # Re-assign clean sequential PIDs and sort by arrival time
+        selected.sort(key=lambda p: p.arrival_time)
+        for i, p in enumerate(selected, 1):
+            p.pid = i
+        return selected
+
+    return all_processes[:num_processes]

@@ -13,7 +13,7 @@
   <header class="header">
     <div class="header-content">
       <h1>&#129504; AI-Powered CPU Scheduler</h1>
-      <p class="subtitle">ML-Enhanced Process Scheduling with XGBoost, LSTM &amp; Deep Q-Networks</p>
+      <p class="subtitle">ML-Enhanced Process Scheduling &mdash; Trained on Google Cluster Trace 2011</p>
     </div>
   </header>
 
@@ -36,9 +36,16 @@
           <input type="number" id="seed" class="seed-input" placeholder="e.g. 42" min="1" max="9999">
         </div>
         <div class="control-group">
+          <label for="context-switch">Context Switch (ticks)</label>
+          <input type="number" id="context-switch" class="seed-input" placeholder="e.g. 1" min="0" max="10" value="0">
+        </div>
+        <div class="control-group">
           <button id="run-btn" class="run-button" onclick="runSimulation()">&#9654; Run Simulation</button>
         </div>
       </div>
+      <p style="font-size:0.82rem; color:var(--text-muted); margin-top:0.75rem;">
+        Data source: Google Cluster Trace 2011 &mdash; 803,964 real task events from an 11k-machine Borg cluster
+      </p>
     </section>
 
     <!-- SECTION 2: METRICS SUMMARY CARDS -->
@@ -106,7 +113,10 @@
 
     <!-- SECTION 8: PROCESS TABLE -->
     <section class="card" id="table-section" style="display:none;">
-      <h2>&#128203; Process Details</h2>
+      <div class="section-header-row">
+        <h2>&#128203; Process Details</h2>
+        <span id="process-count-badge" class="count-badge"></span>
+      </div>
       <div class="table-container">
         <table id="process-table">
           <thead>
@@ -124,6 +134,9 @@
           </thead>
           <tbody id="process-tbody"><!-- Populated by JS --></tbody>
         </table>
+      </div>
+      <div id="table-pagination-controls" class="table-pagination">
+        <button id="show-more-btn" class="secondary-btn" onclick="toggleProcessTableExpansion()">Show All (<span id="remaining-count"></span> more)</button>
       </div>
     </section>
 

@@ -51,8 +51,17 @@ function buildAnimationCells() {
     const displayLog = log.slice(0, 60); // Limit to 60 ticks for animation
 
     container.innerHTML = displayLog.map((entry, i) => {
-        const color = entry.pid !== null ? getPidColor(entry.pid) : 'rgba(255,255,255,0.03)';
-        const label = entry.pid !== null ? `P${entry.pid}` : '';
+        let color, label;
+        if (entry.pid === 'CS') {
+            color = '#78716c';
+            label = 'CS';
+        } else if (entry.pid !== null) {
+            color = getPidColor(entry.pid);
+            label = `P${entry.pid}`;
+        } else {
+            color = 'rgba(255,255,255,0.03)';
+            label = '';
+        }
         return `<div class="anim-cell" data-step="${i}" style="background:${color};">${label}</div>`;
     }).join('');
 }

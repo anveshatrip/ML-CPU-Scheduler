@@ -1,18 +1,3 @@
-"""
-xgboost_sjf.py — XGBoost-Enhanced SJF Scheduler
-==================================================
-Uses XGBoost-predicted burst times instead of known burst times
-to make SJF scheduling decisions.
-
-This is identical to SJF in logic, but instead of reading the actual
-cpu_burst (which is unknown in real OS), it calls the XGBoost model
-to PREDICT the burst, then picks the shortest predicted burst.
-
-COMPARISON:
-    SJF (Known):    picks min(actual_burst)  → theoretical best (impossible)
-    XGBoost-SJF:    picks min(predicted_burst) → practical approximation
-"""
-
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -24,7 +9,8 @@ from module2_ml.xgboost_model import XGBoostPredictor
 
 class XGBoostSJFScheduler(BaseScheduler):
 
-    def __init__(self):
+    def __init__(self, context_switch_overhead=0):
+        super().__init__("XGBoost-SJF", context_switch_overhead)
         self.predictor = XGBoostPredictor()
 
     @property
@@ -39,6 +25,8 @@ class XGBoostSJFScheduler(BaseScheduler):
         completed = 0
         executed = [False] * n
         execution_log = []
+        last_pid = None
+        context_switches = 0
 
         # Pre-predict burst times for all processes
         predicted_bursts = {}
@@ -56,11 +44,19 @@ class XGBoostSJFScheduler(BaseScheduler):
             if not ready_queue:
                 execution_log.append({'time': current_time, 'pid': None})
                 current_time += 1
+                last_pid = None
                 continue
 
             # Pick process with shortest PREDICTED burst (not actual!)
             idx, chosen = min(ready_queue,
                               key=lambda x: predicted_bursts[x[1].pid])
+
+            # Context switch overhead
+            if last_pid is not None and last_pid != chosen.pid and self.context_switch_overhead > 0:
+                context_switches += 1
+                for _ in range(self.context_switch_overhead):
+                    execution_log.append({'time': current_time, 'pid': 'CS'})
+                    current_time += 1
 
             # Record timing
             chosen.start_time = current_time
@@ -71,6 +67,7 @@ class XGBoostSJFScheduler(BaseScheduler):
                 execution_log.append({'time': t, 'pid': chosen.pid})
 
             current_time += chosen.cpu_burst
+            last_pid = chosen.pid
             chosen.completion_time = current_time
             chosen.turnaround_time = chosen.completion_time - chosen.arrival_time
             chosen.waiting_time = chosen.turnaround_time - chosen.cpu_burst
@@ -83,4 +80,5 @@ class XGBoostSJFScheduler(BaseScheduler):
             processes=procs,
             execution_log=execution_log,
             total_time=current_time,
+            context_switches=context_switches,
         )

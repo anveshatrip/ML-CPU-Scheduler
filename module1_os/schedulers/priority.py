@@ -5,8 +5,8 @@ from .base import BaseScheduler, ScheduleResult
 
 class PriorityScheduler(BaseScheduler):
 
-    def __init__(self):
-        super().__init__("Priority")
+    def __init__(self, context_switch_overhead=0):
+        super().__init__("Priority", context_switch_overhead)
 
     def schedule(self, processes):
 
@@ -16,6 +16,8 @@ class PriorityScheduler(BaseScheduler):
         scheduled = []
         current_time = 0
         execution_log = []
+        last_pid = None
+        context_switches = 0
 
         while remaining:
 
@@ -29,11 +31,19 @@ class PriorityScheduler(BaseScheduler):
                 for t in range(current_time, next_arrival):
                     execution_log.append({"time": t, "pid": None})
                 current_time = next_arrival
+                last_pid = None
                 continue
 
             # Smaller priority number = higher priority
             process = min(available, key=lambda p: p.priority)
             remaining.remove(process)
+
+            # Context switch overhead
+            if last_pid is not None and last_pid != process.pid and self.context_switch_overhead > 0:
+                context_switches += 1
+                for _ in range(self.context_switch_overhead):
+                    execution_log.append({"time": current_time, "pid": "CS"})
+                    current_time += 1
 
             process.start_time = current_time
             process.response_time = process.start_time - process.arrival_time
@@ -42,6 +52,7 @@ class PriorityScheduler(BaseScheduler):
                 execution_log.append({"time": t, "pid": process.pid})
 
             current_time += process.cpu_burst
+            last_pid = process.pid
             process.completion_time = current_time
             process.turnaround_time = process.completion_time - process.arrival_time
             process.waiting_time = process.turnaround_time - process.cpu_burst
@@ -54,4 +65,5 @@ class PriorityScheduler(BaseScheduler):
             total_time=current_time,
             algorithm_name="Priority",
             execution_log=execution_log,
+            context_switches=context_switches,
         )

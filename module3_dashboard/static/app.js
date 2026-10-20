@@ -57,6 +57,7 @@ async function runSimulation() {
     const numProcInput = document.getElementById('num-processes').value;
     const quantumInput = document.getElementById('quantum').value;
     const seedInput = document.getElementById('seed').value;
+    const csInput = document.getElementById('context-switch').value;
 
     const response = await fetch('/api/run', {
       method: 'POST',
@@ -65,6 +66,7 @@ async function runSimulation() {
         num_processes: numProcInput ? parseInt(numProcInput, 10) : 50,
         quantum: quantumInput ? parseInt(quantumInput, 10) : 4,
         seed: seedInput ? parseInt(seedInput, 10) : 42,
+        context_switch: csInput ? parseInt(csInput, 10) : 0,
       }),
     });
 
@@ -428,17 +430,28 @@ function renderGantt() {
 
   const container = document.getElementById('gantt-container');
   const legendContainer = document.getElementById('gantt-legend');
-  const pids = [...new Set(log.filter((e) => e.pid !== null).map((e) => e.pid))];
+  const pids = [...new Set(log.filter((e) => e.pid !== null && e.pid !== 'CS').map((e) => e.pid))];
   const displayLog = log.slice(0, 80);
 
   let html = '<div class="gantt-row">';
   html += '<span class="gantt-label">CPU</span>';
   html += '<div class="gantt-bar">';
   displayLog.forEach((entry) => {
-    const color = entry.pid !== null ? getPidColor(entry.pid) : 'transparent';
-    const label = entry.pid !== null ? 'P' + entry.pid : '';
-    const cls = entry.pid === null ? ' idle' : '';
-    html += '<div class="gantt-cell' + cls + '" style="background:' + color + ';" title="t=' + entry.time + ', PID=' + (entry.pid || 'idle') + '">' + label + '</div>';
+    let color, label, cls;
+    if (entry.pid === 'CS') {
+      color = '#78716c';
+      label = 'CS';
+      cls = ' cs';
+    } else if (entry.pid !== null) {
+      color = getPidColor(entry.pid);
+      label = 'P' + entry.pid;
+      cls = '';
+    } else {
+      color = 'transparent';
+      label = '';
+      cls = ' idle';
+    }
+    html += '<div class="gantt-cell' + cls + '" style="background:' + color + ';" title="t=' + entry.time + ', ' + (entry.pid === 'CS' ? 'Context Switch' : 'PID=' + (entry.pid || 'idle')) + '">' + label + '</div>';
   });
   html += '</div></div>';
 
@@ -461,9 +474,32 @@ function renderGantt() {
 // ══════════════════════════════════════════════════════════════════
 // PROCESS TABLE
 // ══════════════════════════════════════════════════════════════════
-function renderProcessTable(processes) {
+let allTableProcesses = [];
+let isTableExpanded = false;
+const DEFAULT_TABLE_PAGE_SIZE = 20;
+
+function toggleProcessTableExpansion() {
+  isTableExpanded = !isTableExpanded;
+  updateProcessTableView();
+}
+
+function updateProcessTableView() {
   const tbody = document.getElementById('process-tbody');
-  if (!processes) return;
+  const countBadge = document.getElementById('process-count-badge');
+  const pagControls = document.getElementById('table-pagination-controls');
+  const showMoreBtn = document.getElementById('show-more-btn');
+  const remainingCountSpan = document.getElementById('remaining-count');
+
+  if (!tbody || !allTableProcesses) return;
+
+  const total = allTableProcesses.length;
+  const displayList = isTableExpanded ? allTableProcesses : allTableProcesses.slice(0, DEFAULT_TABLE_PAGE_SIZE);
+
+  if (countBadge) {
+    countBadge.textContent = isTableExpanded
+      ? `Showing all ${total} processes`
+      : `Showing ${Math.min(DEFAULT_TABLE_PAGE_SIZE, total)} of ${total} processes`;
+  }
 
   function errorClass(err) {
     if (err === '\u2014') return '';
@@ -473,7 +509,7 @@ function renderProcessTable(processes) {
     return 'error-bad';
   }
 
-  tbody.innerHTML = processes.map((p) => {
+  tbody.innerHTML = displayList.map((p) => {
     const xgbPred = p.predicted_burst_xgb != null ? p.predicted_burst_xgb : '\u2014';
     const lstmPred = p.predicted_burst_lstm != null ? p.predicted_burst_lstm : '\u2014';
     const xgbError = p.predicted_burst_xgb != null
@@ -495,6 +531,26 @@ function renderProcessTable(processes) {
       '<td class="' + errorClass(lstmError) + '">' + lstmError + '</td>' +
       '</tr>';
   }).join('');
+
+  if (pagControls && showMoreBtn) {
+    if (total <= DEFAULT_TABLE_PAGE_SIZE) {
+      pagControls.style.display = 'none';
+    } else {
+      pagControls.style.display = 'flex';
+      if (isTableExpanded) {
+        showMoreBtn.textContent = 'Show Less (First 20)';
+      } else {
+        const remaining = total - DEFAULT_TABLE_PAGE_SIZE;
+        showMoreBtn.textContent = `Show All (${remaining} more)`;
+      }
+    }
+  }
+}
+
+function renderProcessTable(processes) {
+  allTableProcesses = processes || [];
+  isTableExpanded = false;
+  updateProcessTableView();
 }
 
 // ══════════════════════════════════════════════════════════════════

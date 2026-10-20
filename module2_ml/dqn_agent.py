@@ -1,52 +1,3 @@
-"""
-dqn_agent.py — Deep Q-Network Reinforcement Learning Scheduler
-================================================================
-WHAT THIS DOES:
-    Instead of predicting burst times (like XGBoost/LSTM), the DQN agent
-    learns a SCHEDULING POLICY directly through trial and error.
-
-    It observes the state of the ready queue, picks a process to run,
-    and receives a reward. Over thousands of episodes, it learns which
-    process to pick in which situation to minimize total waiting time.
-
-WHY REINFORCEMENT LEARNING:
-    Supervised learning (XGBoost, LSTM) learns from labeled examples.
-    RL learns from EXPERIENCE — like how a chess AI learns by playing
-    millions of games, not by studying labeled board positions.
-
-    The beauty of RL for scheduling: it can discover strategies that
-    no human-designed algorithm uses. It might learn to batch similar
-    process types, or to strategically delay certain processes.
-
-HOW DQN WORKS:
-    DQN (Deep Q-Network) is a popular RL algorithm introduced by DeepMind.
-
-    Core concepts:
-    1. STATE:   What the agent sees (ready queue stats, process features)
-    2. ACTION:  Which process to schedule next
-    3. REWARD:  Negative of waiting time increase (we want to MINIMIZE wait)
-    4. Q-VALUE: The expected total future reward for taking an action in a state
-    5. NETWORK: A neural net that predicts Q-values for all possible actions
-
-    The agent learns to pick the action with the highest Q-value in each state.
-
-    KEY TRICK: Experience Replay
-    Instead of learning from the most recent experience only, the agent
-    stores past experiences in a "replay buffer" and randomly samples
-    from it. This breaks correlations and stabilizes training.
-
-ARCHITECTURE:
-    State (14 features)
-    → FC layer (14 → 128) + ReLU
-    → FC layer (128 → 128) + ReLU
-    → FC layer (128 → max_queue_size)
-    → Output: Q-value for each possible action (= each position in queue)
-
-USAGE:
-    python -m module2_ml.dqn_agent train
-    python -m module2_ml.dqn_agent stats
-"""
-
 import os
 import json
 import random
@@ -291,20 +242,6 @@ class SchedulingEnv:
 # DQN AGENT
 # ═══════════════════════════════════════════════════════════════════════
 class DQNAgent:
-    """
-    The DQN agent that learns to schedule processes.
-
-    KEY COMPONENTS:
-    1. policy_net:  The main Q-network that is actively trained
-    2. target_net:  A slowly-updated copy used for stable Q-value targets
-    3. replay_buffer: Stores past experiences for batch learning
-    4. epsilon: Controls exploration vs exploitation
-
-    EPSILON-GREEDY EXPLORATION:
-    Early in training, epsilon is high (1.0) → agent takes random actions
-    (exploring different strategies). Over time, epsilon decreases → agent
-    relies more on its learned Q-values (exploiting what it's learned).
-    """
 
     def __init__(self, state_size: int = DQN_CONFIG['state_size'],
                  action_size: int = DQN_CONFIG['max_queue_size']):
@@ -327,19 +264,7 @@ class DQNAgent:
         self.epsilon = DQN_CONFIG['epsilon_start']
 
     def select_action(self, state: np.ndarray, num_valid_actions: int) -> int:
-        """
-        Choose which process to schedule.
 
-        Uses epsilon-greedy: with probability epsilon, pick randomly.
-        Otherwise, pick the action with the highest Q-value.
-
-        Args:
-            state: Current environment state
-            num_valid_actions: Number of processes in the ready queue
-
-        Returns:
-            Index of the chosen process in the ready queue
-        """
         if num_valid_actions == 0:
             return 0
 
@@ -356,17 +281,7 @@ class DQNAgent:
                 return valid_q.argmax().item()
 
     def learn(self):
-        """
-        Sample a batch from the replay buffer and update the Q-network.
 
-        THE DQN LEARNING FORMULA:
-            target = reward + gamma * max(Q_target(next_state, all_actions))
-            loss = MSE(Q_policy(state, action), target)
-
-        In English:
-            "The Q-value for this (state, action) should equal the reward
-            I got, plus the discounted best Q-value of the next state."
-        """
         if len(self.replay_buffer) < DQN_CONFIG['batch_size']:
             return  # Not enough experiences yet
 
@@ -420,16 +335,7 @@ class DQNAgent:
 # TRAINING
 # ═══════════════════════════════════════════════════════════════════════
 def train(data_path: str = 'data/processes.csv'):
-    """
-    Train the DQN agent through simulated scheduling episodes.
 
-    Each episode:
-    1. Generate a random subset of processes
-    2. Let the agent schedule them (making decisions, receiving rewards)
-    3. Store experiences in replay buffer
-    4. Learn from sampled batch
-    5. Decay exploration rate
-    """
     import pandas as pd
 
     print("=" * 60)

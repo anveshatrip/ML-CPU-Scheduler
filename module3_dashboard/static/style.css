@@ -336,6 +336,7 @@ body {
   color: rgba(255,255,255,0.85);
 }
 .gantt-cell.idle { background: #eeece6; color: transparent; }
+.gantt-cell.cs   { background: #78716c; color: #fff; font-size: 0.52rem; letter-spacing: -0.5px; }
 .gantt-legend {
   display: flex;
   flex-wrap: wrap;
@@ -496,6 +497,46 @@ body {
 .error-good { color: var(--c-sjf);  font-weight: 600; }
 .error-ok   { color: var(--c-prio); }
 .error-bad  { color: var(--c-fcfs); font-weight: 600; }
+
+.section-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.85rem;
+}
+.section-header-row h2 {
+  margin-bottom: 0;
+}
+.count-badge {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-card-inner);
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+}
+.table-pagination {
+  margin-top: 0.9rem;
+  display: flex;
+  justify-content: center;
+}
+.secondary-btn {
+  background: var(--bg-card-inner);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  padding: 0.45rem 1.1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.secondary-btn:hover {
+  background: var(--border);
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
 
 /* ═══════════════════════════════════════ */
 /* FOOTER                                  */

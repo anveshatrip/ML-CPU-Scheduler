@@ -1,13 +1,3 @@
-"""
-lstm_sjf.py — LSTM-Enhanced SJF Scheduler
-============================================
-Uses LSTM-predicted burst times for SJF scheduling.
-
-KEY DIFFERENCE from XGBoost-SJF:
-The LSTM builds up a history of completed processes and uses that
-sequence context to predict the next burst. This means its predictions
-potentially improve over time as it sees more of the workload pattern.
-"""
 
 import sys
 import os
@@ -20,7 +10,8 @@ from module2_ml.lstm_model import LSTMPredictor
 
 class LSTMSJFScheduler(BaseScheduler):
 
-    def __init__(self):
+    def __init__(self, context_switch_overhead=0):
+        super().__init__("LSTM-SJF", context_switch_overhead)
         self.predictor = LSTMPredictor()
 
     @property
@@ -38,6 +29,8 @@ class LSTMSJFScheduler(BaseScheduler):
         completed = 0
         executed = [False] * n
         execution_log = []
+        last_pid = None
+        context_switches = 0
 
         while completed < n:
             # Build ready queue
@@ -49,6 +42,7 @@ class LSTMSJFScheduler(BaseScheduler):
             if not ready_queue:
                 execution_log.append({'time': current_time, 'pid': None})
                 current_time += 1
+                last_pid = None
                 continue
 
             # Predict burst for each process in the ready queue
@@ -62,6 +56,13 @@ class LSTMSJFScheduler(BaseScheduler):
             idx, chosen = min(ready_queue,
                               key=lambda x: predicted_bursts[x[1].pid])
 
+            # Context switch overhead
+            if last_pid is not None and last_pid != chosen.pid and self.context_switch_overhead > 0:
+                context_switches += 1
+                for _ in range(self.context_switch_overhead):
+                    execution_log.append({'time': current_time, 'pid': 'CS'})
+                    current_time += 1
+
             # Record timing
             chosen.start_time = current_time
             chosen.response_time = chosen.start_time - chosen.arrival_time
@@ -71,6 +72,7 @@ class LSTMSJFScheduler(BaseScheduler):
                 execution_log.append({'time': t, 'pid': chosen.pid})
 
             current_time += chosen.cpu_burst
+            last_pid = chosen.pid
             chosen.completion_time = current_time
             chosen.turnaround_time = chosen.completion_time - chosen.arrival_time
             chosen.waiting_time = chosen.turnaround_time - chosen.cpu_burst
@@ -87,4 +89,5 @@ class LSTMSJFScheduler(BaseScheduler):
             processes=procs,
             execution_log=execution_log,
             total_time=current_time,
+            context_switches=context_switches,
         )

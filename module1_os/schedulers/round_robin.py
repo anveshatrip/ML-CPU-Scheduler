@@ -6,8 +6,8 @@ from .base import BaseScheduler, ScheduleResult
 
 class RoundRobinScheduler(BaseScheduler):
 
-    def __init__(self, quantum=2):
-        super().__init__("Round Robin")
+    def __init__(self, quantum=2, context_switch_overhead=0):
+        super().__init__("Round Robin", context_switch_overhead)
         self.quantum = quantum
 
     def schedule(self, processes):
@@ -21,6 +21,8 @@ class RoundRobinScheduler(BaseScheduler):
         completed = 0
         first_run = {}
         execution_log = []  # Tick-by-tick log for Gantt / animation
+        last_pid = None
+        context_switches = 0
 
         # Enqueue all processes that arrived at time 0
         while index < len(processes) and processes[index].arrival_time <= current_time:
@@ -36,12 +38,24 @@ class RoundRobinScheduler(BaseScheduler):
                     for t in range(current_time, processes[index].arrival_time):
                         execution_log.append({"time": t, "pid": None})
                     current_time = processes[index].arrival_time
+                    last_pid = None
                     while index < len(processes) and processes[index].arrival_time <= current_time:
                         ready_queue.append(processes[index])
                         index += 1
                 continue
 
             process = ready_queue.popleft()
+
+            # Context switch overhead if switching to a new process
+            if last_pid is not None and last_pid != process.pid and self.context_switch_overhead > 0:
+                context_switches += 1
+                for _ in range(self.context_switch_overhead):
+                    execution_log.append({"time": current_time, "pid": "CS"})
+                    current_time += 1
+                # Admit any processes that arrived during the context switch
+                while index < len(processes) and processes[index].arrival_time <= current_time:
+                    ready_queue.append(processes[index])
+                    index += 1
 
             # Record first-run (response time)
             if process.pid not in first_run:
@@ -57,6 +71,7 @@ class RoundRobinScheduler(BaseScheduler):
                 execution_log.append({"time": t, "pid": process.pid})
 
             current_time += execution_time
+            last_pid = process.pid
             process.remaining_burst -= execution_time
 
             if process.remaining_burst == 0:
@@ -81,4 +96,5 @@ class RoundRobinScheduler(BaseScheduler):
             total_time=current_time,
             algorithm_name="Round Robin",
             execution_log=execution_log,
+            context_switches=context_switches,
         )

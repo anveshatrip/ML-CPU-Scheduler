@@ -1,19 +1,3 @@
-"""
-dqn_scheduler.py — DQN Reinforcement Learning Scheduler
-==========================================================
-Uses the trained DQN agent to make scheduling decisions.
-
-FUNDAMENTAL DIFFERENCE:
-XGBoost-SJF and LSTM-SJF predict burst times, then pick the shortest.
-They are still fundamentally SJF — just with estimated bursts.
-
-DQN doesn't predict burst times at all. Instead, it looks at the
-entire ready queue state and directly picks which process to schedule.
-It learned this policy through thousands of training episodes.
-
-This means DQN could potentially discover scheduling strategies
-that don't map to any named algorithm — it learns what works.
-"""
 
 import sys
 import os
@@ -27,7 +11,8 @@ from module2_ml.dqn_agent import DQNAgent, DQN_CONFIG
 
 class DQNScheduler(BaseScheduler):
 
-    def __init__(self):
+    def __init__(self, context_switch_overhead=0):
+        super().__init__("DQN Scheduler", context_switch_overhead)
         self.agent = DQNAgent()
         self.agent.load()  # Load trained model, set epsilon=0
 
@@ -66,6 +51,8 @@ class DQNScheduler(BaseScheduler):
         completed = 0
         executed = [False] * n
         execution_log = []
+        last_pid = None
+        context_switches = 0
 
         while completed < n:
             # Build ready queue
@@ -77,6 +64,7 @@ class DQNScheduler(BaseScheduler):
             if not ready_queue:
                 execution_log.append({'time': current_time, 'pid': None})
                 current_time += 1
+                last_pid = None
                 continue
 
             # Get state and let the DQN agent decide
@@ -90,6 +78,13 @@ class DQNScheduler(BaseScheduler):
             # Get the chosen process
             idx, chosen = ready_queue[action]
 
+            # Context switch overhead
+            if last_pid is not None and last_pid != chosen.pid and self.context_switch_overhead > 0:
+                context_switches += 1
+                for _ in range(self.context_switch_overhead):
+                    execution_log.append({'time': current_time, 'pid': 'CS'})
+                    current_time += 1
+
             # Record timing
             chosen.start_time = current_time
             chosen.response_time = chosen.start_time - chosen.arrival_time
@@ -99,6 +94,7 @@ class DQNScheduler(BaseScheduler):
                 execution_log.append({'time': t, 'pid': chosen.pid})
 
             current_time += chosen.cpu_burst
+            last_pid = chosen.pid
             chosen.completion_time = current_time
             chosen.turnaround_time = chosen.completion_time - chosen.arrival_time
             chosen.waiting_time = chosen.turnaround_time - chosen.cpu_burst
@@ -111,4 +107,5 @@ class DQNScheduler(BaseScheduler):
             processes=procs,
             execution_log=execution_log,
             total_time=current_time,
+            context_switches=context_switches,
         )

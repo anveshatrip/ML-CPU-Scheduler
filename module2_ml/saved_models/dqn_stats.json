@@ -1,7 +1,7 @@
 {
-  "avg_reward": -24.4,
+  "avg_reward": -51.85,
   "episodes_trained": 2000,
-  "best_avg_reward": -19.09,
+  "best_avg_reward": -51.85,
   "epsilon_final": 0.05,
   "config": {
     "state_size": 14,

@@ -1,36 +1,3 @@
-"""
-xgboost_model.py — XGBoost Burst Time Predictor
-==================================================
-WHAT THIS DOES:
-    Trains an XGBoost regression model to predict CPU burst times
-    from process features (type, priority, I/O frequency, memory, threads).
-
-WHY XGBOOST:
-    XGBoost (eXtreme Gradient Boosting) is the gold standard for tabular
-    (structured) data prediction. It works by building an ensemble of
-    decision trees, where each new tree corrects the errors of the previous
-    ones. It's fast, accurate, and handles mixed feature types well.
-
-    Think of it like this: one decision tree might learn "if process_type is
-    cpu_bound, burst is probably > 20". Another tree might refine this to
-    "if cpu_bound AND high memory, burst is probably > 35". XGBoost combines
-    hundreds of these trees for a precise prediction.
-
-HOW IT FITS IN THE PROJECT:
-    1. generator.py creates processes with KNOWN burst times
-    2. This model trains on those (features → burst_time)
-    3. At scheduling time, the ML-SJF scheduler calls predict()
-       with a new process's features to get a PREDICTED burst
-    4. The scheduler picks the process with the shortest PREDICTED burst
-
-USAGE:
-    # Train the model
-    python -m module2_ml.xgboost_model train
-
-    # Predict burst for a single process
-    python -m module2_ml.xgboost_model predict
-"""
-
 import os
 import json
 import numpy as np
@@ -71,29 +38,7 @@ XGBOOST_PARAMS = {
 # FEATURE ENGINEERING
 # ═══════════════════════════════════════════════════════════════════════
 def prepare_features(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Convert raw process data into ML-ready features.
 
-    WHAT THIS DOES:
-    - One-hot encodes 'process_type' into 4 binary columns:
-      process_type_cpu_bound, process_type_io_bound,
-      process_type_mixed, process_type_interactive
-    - Keeps numerical features as-is: priority, io_frequency, memory_mb, num_threads
-
-    WHY ONE-HOT ENCODING:
-    ML models need numbers, not strings. One-hot encoding converts a categorical
-    variable like process_type="cpu_bound" into 4 binary columns:
-        process_type_cpu_bound = 1
-        process_type_io_bound  = 0
-        process_type_mixed     = 0
-        process_type_interactive = 0
-
-    Args:
-        df: DataFrame with columns from Process.to_dict()
-
-    Returns:
-        DataFrame with only the feature columns (ready for model input)
-    """
     # One-hot encode process_type
     for ptype in PROCESS_TYPES:
         df[f'process_type_{ptype}'] = (df['process_type'] == ptype).astype(int)
@@ -104,16 +49,7 @@ def prepare_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def prepare_features_single(process_dict: dict) -> np.ndarray:
-    """
-    Prepare features for a SINGLE process (used at prediction time).
 
-    Args:
-        process_dict: Dictionary with process attributes
-                     (pid, process_type, priority, io_frequency, memory_mb, num_threads)
-
-    Returns:
-        1D numpy array of features, shape (8,)
-    """
     features = [
         process_dict['priority'],
         process_dict['io_frequency'],
@@ -132,24 +68,7 @@ def prepare_features_single(process_dict: dict) -> np.ndarray:
 # TRAINING
 # ═══════════════════════════════════════════════════════════════════════
 def train(data_path: str = 'data/processes.csv', test_size: float = 0.2):
-    """
-    Train the XGBoost model on process data.
 
-    STEP BY STEP:
-    1. Load process data from CSV
-    2. Split into features (X) and target (y = cpu_burst)
-    3. Split into train (80%) and test (20%) sets
-    4. Train XGBoost regressor
-    5. Evaluate on test set (MAE, RMSE, R²)
-    6. Save model and stats to disk
-
-    Args:
-        data_path: Path to the processes CSV file
-        test_size: Fraction of data to use for testing (0.2 = 20%)
-
-    Returns:
-        Dictionary with model performance metrics
-    """
     print("=" * 60)
     print("  XGBoost Burst Time Predictor — Training")
     print("=" * 60)

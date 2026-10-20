@@ -1,7 +1,7 @@
 {
-  "mae": 12.1364,
-  "rmse": 14.5045,
-  "r2": -0.0375,
+  "mae": 11.815,
+  "rmse": 15.8963,
+  "r2": -0.264,
   "sequence_length": 5,
   "total_params": 54337,
   "epochs": 50,

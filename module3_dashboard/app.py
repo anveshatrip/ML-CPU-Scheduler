@@ -46,10 +46,11 @@ def index():
 @app.route('/api/run', methods=['POST'])
 def run_benchmark():
     """
-    Run the live benchmark on real user inputs:
-    generate processes, run all 7 schedulers, compute metrics, and return results.
+    Run the live benchmark using real Google Cluster Trace 2011 data.
+    Loads processes from the preprocessed trace, runs all 7 schedulers,
+    computes metrics, and returns results.
     """
-    from module1_os.generator import generate_processes
+    from module1_os.generator import load_google_trace_processes
     from module1_os.schedulers.fcfs import FCFSScheduler
     from module1_os.schedulers.sjf import SJFScheduler
     from module1_os.schedulers.priority import PriorityScheduler
@@ -63,19 +64,23 @@ def run_benchmark():
     num_processes = int(params.get('num_processes') or 50)
     quantum = int(params.get('quantum') or 4)
     seed = int(params.get('seed') or 42)
+    context_switch = int(params.get('context_switch') or 0)
 
-    # 1. Generate workload on the fly with the exact seed and count
-    processes = generate_processes(num_processes=num_processes, seed=seed)
+    # 1. Load real processes from Google Cluster Trace 2011 dataset
+    processes = load_google_trace_processes(
+        num_processes=num_processes, seed=seed,
+        filename=os.path.join(os.path.dirname(__file__), '..', 'data', 'processes.csv')
+    )
 
-    # 2. Instantiate all 7 schedulers
+    # 2. Instantiate all 7 schedulers with context switch overhead
     schedulers = [
-        FCFSScheduler(),
-        SJFScheduler(),
-        PriorityScheduler(),
-        RoundRobinScheduler(quantum=quantum),
-        XGBoostSJFScheduler(),
-        LSTMSJFScheduler(),
-        DQNScheduler(),
+        FCFSScheduler(context_switch_overhead=context_switch),
+        SJFScheduler(context_switch_overhead=context_switch),
+        PriorityScheduler(context_switch_overhead=context_switch),
+        RoundRobinScheduler(quantum=quantum, context_switch_overhead=context_switch),
+        XGBoostSJFScheduler(context_switch_overhead=context_switch),
+        LSTMSJFScheduler(context_switch_overhead=context_switch),
+        DQNScheduler(context_switch_overhead=context_switch),
     ]
 
     all_metrics = []
@@ -83,7 +88,7 @@ def run_benchmark():
 
     for scheduler in schedulers:
         result = scheduler.schedule(processes)
-        m = compute_metrics(result.processes, result.total_time)
+        m = compute_metrics(result.processes, result.total_time, result.context_switches)
 
         # Standardize algorithm display name
         algo_name = scheduler.name
@@ -92,7 +97,7 @@ def run_benchmark():
         elif algo_name == "Round Robin":
             algo_name = f"Round Robin (q={quantum})"
 
-        # Use the scheduler's execution_log for the Gantt (tick-accurate, shows preemptions)
+        # Use the scheduler's execution_log for the Gantt (tick-accurate, shows preemptions and CS)
         gantt_data[algo_name] = result.execution_log[:80]
 
         all_metrics.append({
@@ -105,12 +110,13 @@ def run_benchmark():
             "fairness_index": round(m["jain_fairness"], 4),
             "max_waiting_time": m["max_waiting_time"],
             "total_time": result.total_time,
+            "context_switches": result.context_switches,
         })
 
-    # 3. Attach individual model predictions for the process table (first 20 processes)
+    # 3. Attach individual model predictions for all processes
     xgb_p, lstm_p = get_predictors()
     proc_dicts = []
-    for p in processes[:20]:
+    for p in processes:
         d = p.to_dict()
         d['predicted_burst_xgb'] = round(float(xgb_p.predict(d)), 1) if xgb_p else d['cpu_burst']
         d['predicted_burst_lstm'] = round(float(lstm_p.predict(d)), 1) if lstm_p else d['cpu_burst']

@@ -1,4 +1,4 @@
-def compute_metrics(processes, total_time):
+def compute_metrics(processes, total_time, context_switches=0):
     """
     Calculate performance metrics for a scheduling algorithm.
     """
@@ -11,7 +11,8 @@ def compute_metrics(processes, total_time):
             "cpu_utilization": 0,
             "throughput": 0,
             "jain_fairness": 0,
-            "max_waiting_time": 0
+            "max_waiting_time": 0,
+            "context_switches": 0
         }
 
     # Average Waiting Time
@@ -78,5 +79,6 @@ def compute_metrics(processes, total_time):
         "cpu_utilization": cpu_utilization,
         "throughput": throughput,
         "jain_fairness": jain_fairness,
-        "max_waiting_time": max_waiting
+        "max_waiting_time": max_waiting,
+        "context_switches": context_switches
     }

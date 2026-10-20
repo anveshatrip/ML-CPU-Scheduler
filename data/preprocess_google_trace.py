@@ -1,183 +1,171 @@
 """
-preprocess_google_trace.py — Convert Google Cluster Trace to Our Format
-=========================================================================
+preprocess_google_trace.py — Convert Google Cluster Trace to Process Format
+=============================================================================
 WHAT THIS DOES:
-    Takes the raw Google Cluster Trace 2011 task_events CSV and converts it
-    into our project's process format (pid, process_type, priority, arrival_time,
-    cpu_burst, io_frequency, memory_mb, num_threads).
-
-HOW IT WORKS:
-    1. Load raw task_events (450K rows of scheduling lifecycle events)
-    2. Match SUBMIT (event 0) → FINISH (event 4) events for each task
-    3. Compute actual runtime (burst time) = finish_timestamp - schedule_timestamp
-    4. Map Google's scheduling_class (0-3) to our process_type labels
-    5. Map Google's normalized resource requests to our feature format
-    6. Save as data/processes.csv (same format as our synthetic generator)
-
-GOOGLE TRACE SCHEMA (task_events):
-    Col 0: timestamp (microseconds since trace start)
-    Col 5: event_type
-        0 = SUBMIT    (task enters the system)
-        1 = SCHEDULE  (task gets CPU)
-        4 = FINISH    (task completes)
-        2 = EVICT, 3 = FAIL, 5 = KILL (task didn't complete normally)
-    Col 7: scheduling_class (0=best-effort, 1=mid, 2=production, 3=monitoring)
-    Col 8: priority (0-11, higher = more important)
-    Col 9: cpu_request (normalized, 0.0-1.0 of one machine's CPU)
-    Col 10: memory_request (normalized, 0.0-1.0 of one machine's memory)
+    Parses real Google Cluster Trace 2011 task event logs (gzip CSVs)
+    and converts them into our project's standardized Process format:
+    [pid, process_type, priority, arrival_time, cpu_burst, io_frequency, memory_mb, num_threads]
 
 DATA SOURCE:
-    Google Cluster Trace 2011, partition part-00000-of-00500
-    https://storage.googleapis.com/clusterdata-2011-2/task_events/
-    Reference: Reiss et al., "Google Cluster-Usage Traces", 2011
+    Google Cluster Trace 2011 (Reiss et al., Google Inc.)
+    Contains production trace logs from an ~11k machine Google Borg cluster.
+    Event types:
+        0 = SUBMIT    (task arrives)
+        1 = SCHEDULE  (task allocated CPU)
+        4 = FINISH    (task completed normally)
+        5 = KILL      (task terminated/stopped)
+        2 = EVICT     (task preempted/evicted)
 
-USAGE:
-    python data/preprocess_google_trace.py
+MAPPING TO PROCESS SCHEMA:
+    - scheduling_class (0-3) → process_type:
+        0: 'interactive' (short, high-priority user/background requests)
+        1: 'io_bound'    (moderate compute, heavy I/O waiting)
+        2: 'cpu_bound'   (production compute jobs)
+        3: 'mixed'       (long-running system/monitoring services)
+    - cpu_burst: scaled log-runtime (finish_time - schedule_time) mapped to 1-50 range
+    - priority: Google 0-11 inverted to OS priority 1-20 (1 = highest priority)
+    - io_frequency: inverse of normalized CPU request [0.05, 0.95]
+    - memory_mb: scaled from Google normalized memory_request [10, 2048 MB]
+    - num_threads: derived from CPU request allocation [1, 16 threads]
+    - arrival_time: chronologically normalized submit timestamps starting at 0
 """
 
 import os
-import pandas as pd
+import glob
 import numpy as np
+import pandas as pd
 
 
 def preprocess():
     print("=" * 60)
-    print("  Preprocessing Google Cluster Trace 2011")
+    print("  Processing Google Cluster Trace 2011 Dataset")
     print("=" * 60)
 
-    # ─── Step 1: Load raw data ───────────────────────────────────────
-    raw_path = 'data/task_events_raw.csv.gz'
-    print(f"\n[1/5] Loading raw data from {raw_path}...")
+    # 1. Locate all available task_events parts
+    data_dir = os.path.dirname(os.path.abspath(__file__))
+    trace_files = sorted(glob.glob(os.path.join(data_dir, 'task_events_*.csv.gz')))
+    if not trace_files:
+        raise FileNotFoundError(f"No task_events_*.csv.gz files found in {data_dir}")
 
-    cols = ['timestamp', 'missing_info', 'job_id', 'task_index', 'machine_id',
-            'event_type', 'user', 'scheduling_class', 'priority',
-            'cpu_request', 'memory_request', 'disk_space_request', 'constraint']
+    print(f"\n[1/5] Loading trace archives: {[os.path.basename(f) for f in trace_files]}...")
+    cols = [
+        'timestamp', 'missing_info', 'job_id', 'task_index', 'machine_id',
+        'event_type', 'user', 'scheduling_class', 'priority',
+        'cpu_request', 'memory_request', 'disk_space_request', 'constraint'
+    ]
 
-    df = pd.read_csv(raw_path, header=None, names=cols, compression='gzip')
-    print(f"      Loaded {len(df)} events")
+    dfs = []
+    for f in trace_files:
+        df_part = pd.read_csv(f, header=None, compression='gzip', names=cols)
+        dfs.append(df_part)
+    all_df = pd.concat(dfs, ignore_index=True)
+    print(f"      Loaded {len(all_df):,} raw cluster trace events")
 
-    # ─── Step 2: Compute task runtimes ───────────────────────────────
-    print("[2/5] Computing task runtimes (SCHEDULE -> FINISH)...")
+    # 2. Extract complete task lifecycles
+    print("\n[2/5] Extracting completed task lifecycles...")
+    all_df['task_id'] = all_df['job_id'].astype(str) + '_' + all_df['task_index'].astype(str)
 
-    # Create a unique task ID from job_id + task_index
-    df['task_id'] = df['job_id'].astype(str) + '_' + df['task_index'].astype(str)
+    # SUBMIT events (arrival & resource metadata)
+    submits = all_df[all_df['event_type'] == 0][
+        ['task_id', 'timestamp', 'scheduling_class', 'priority', 'cpu_request', 'memory_request']
+    ].drop_duplicates('task_id', keep='first')
+    submits.rename(columns={'timestamp': 'submit_time'}, inplace=True)
 
-    # Get SUBMIT events (arrival time)
-    submit_events = df[df['event_type'] == 0][['task_id', 'timestamp', 'scheduling_class',
-                                                 'priority', 'cpu_request', 'memory_request']].copy()
-    submit_events = submit_events.drop_duplicates(subset='task_id', keep='first')
-    submit_events.rename(columns={'timestamp': 'submit_time'}, inplace=True)
+    # SCHEDULE events (CPU allocation timestamp)
+    schedules = all_df[all_df['event_type'] == 1][['task_id', 'timestamp']].drop_duplicates('task_id', keep='first')
+    schedules.rename(columns={'timestamp': 'schedule_time'}, inplace=True)
 
-    # Get SCHEDULE events (when task first gets CPU)
-    schedule_events = df[df['event_type'] == 1][['task_id', 'timestamp']].copy()
-    schedule_events = schedule_events.drop_duplicates(subset='task_id', keep='first')
-    schedule_events.rename(columns={'timestamp': 'schedule_time'}, inplace=True)
+    # Completion events (4 = FINISH, 5 = KILL, 2 = EVICT)
+    ends = all_df[all_df['event_type'].isin([2, 4, 5])][['task_id', 'timestamp']].sort_values('timestamp').drop_duplicates('task_id', keep='last')
+    ends.rename(columns={'timestamp': 'finish_time'}, inplace=True)
 
-    # Get FINISH events (when task completes)
-    finish_events = df[df['event_type'] == 4][['task_id', 'timestamp']].copy()
-    finish_events = finish_events.drop_duplicates(subset='task_id', keep='first')
-    finish_events.rename(columns={'timestamp': 'finish_time'}, inplace=True)
-
-    # Merge: only keep tasks that were SUBMITTED, SCHEDULED, and FINISHED
-    tasks = submit_events.merge(schedule_events, on='task_id', how='inner')
-    tasks = tasks.merge(finish_events, on='task_id', how='inner')
-    print(f"      Tasks with complete lifecycle: {len(tasks)}")
-
-    # Compute runtime (burst time) in time units
-    # Original timestamps are in microseconds — convert to reasonable time units
-    # We'll normalize to a scale that makes sense for scheduling simulation
+    # Inner merge to keep only tasks with recorded start and end
+    tasks = submits.merge(schedules, on='task_id').merge(ends, on='task_id')
     tasks['runtime_us'] = tasks['finish_time'] - tasks['schedule_time']
-
-    # Filter out invalid runtimes (negative or zero)
     tasks = tasks[tasks['runtime_us'] > 0].copy()
-    print(f"      Tasks with positive runtime: {len(tasks)}")
+    print(f"      Found {len(tasks):,} tasks with verified runtime")
 
-    # ─── Step 3: Map to our feature format ───────────────────────────
-    print("[3/5] Mapping Google features to our format...")
+    # 3. Stratified balanced sampling across scheduling classes
+    print("\n[3/5] Sampling balanced workload across 4 classes...")
+    samples = []
+    # Google classes: 0 = interactive, 1 = io_bound, 2 = cpu_bound, 3 = mixed
+    targets = {0: 1000, 1: 1000, 2: 1000, 3: 1000}
+    for sc, target_n in targets.items():
+        grp = tasks[tasks['scheduling_class'] == sc]
+        n_sample = min(len(grp), target_n)
+        samples.append(grp.sample(n=n_sample, random_state=42))
 
-    # Map scheduling_class to process_type
-    # Google's scheduling classes:
-    # 0 = free/best-effort (like our 'interactive' — low priority background tasks)
-    # 1 = best-effort/mid (like our 'io_bound' — moderate tasks)
-    # 2 = production (like our 'cpu_bound' — important compute tasks)
-    # 3 = monitoring/latency-sensitive (like our 'mixed' — system services)
+    sampled = pd.concat(samples, ignore_index=True)
+    # Sort chronologically by submission time to maintain real temporal ordering
+    sampled = sampled.sort_values('submit_time').reset_index(drop=True)
+    print(f"      Total sampled tasks: {len(sampled)}")
+
+    # 4. Map features to OS simulation schema
+    print("\n[4/5] Mapping Google attributes to scheduler process schema...")
     sclass_to_type = {
         0: 'interactive',
         1: 'io_bound',
         2: 'cpu_bound',
         3: 'mixed',
     }
-    tasks['process_type'] = tasks['scheduling_class'].map(sclass_to_type)
-    tasks = tasks.dropna(subset=['process_type'])
+    sampled['process_type'] = sampled['scheduling_class'].map(sclass_to_type)
 
-    # Normalize runtime to a 1-50 scale (matching our simulation's burst range)
-    # Using percentile-based scaling to handle outliers
-    p99 = tasks['runtime_us'].quantile(0.99)
-    tasks['cpu_burst'] = (tasks['runtime_us'] / p99 * 49 + 1).clip(1, 50).astype(int)
+    # Log-scaling for burst times to handle heavy-tailed datacenter distributions
+    # Clamped between 1 and 50 time units for standard simulation
+    log_rt = np.log10(sampled['runtime_us'].clip(lower=1000))
+    p2, p98 = np.percentile(log_rt, [2, 98])
+    denom = max(p98 - p2, 1e-6)
+    sampled['cpu_burst'] = (1 + (log_rt.clip(p2, p98) - p2) / denom * 49).round().astype(int).clip(1, 50)
 
-    # Map priority (Google uses 0-11, we use 1-20)
-    tasks['priority'] = ((tasks['priority'] / 11) * 19 + 1).clip(1, 20).astype(int)
-    # Invert: Google's high priority = high number, ours = low number
-    tasks['priority'] = 21 - tasks['priority']
+    # Priority: Google 0-11 → OS 1-20 (inverting so 1 = highest priority)
+    google_prio = sampled['priority'].fillna(5).clip(0, 11)
+    sampled['priority'] = (21 - ((google_prio / 11) * 19 + 1).round().astype(int)).clip(1, 20)
 
-    # CPU request → io_frequency (inverse: high CPU = low I/O)
-    tasks['cpu_request'] = tasks['cpu_request'].fillna(tasks['cpu_request'].median())
-    tasks['io_frequency'] = (1.0 - tasks['cpu_request'].clip(0, 1)).round(2)
+    # I/O frequency: inverse of CPU request (low CPU allocation = high I/O wait)
+    cpu_req = sampled['cpu_request'].fillna(sampled['cpu_request'].median()).clip(0.001, 1.0)
+    sampled['io_frequency'] = (1.0 - (cpu_req / cpu_req.max() * 0.9)).round(2).clip(0.05, 0.95)
 
-    # Memory request → memory_mb (scale normalized 0-1 to 10-2048)
-    tasks['memory_request'] = tasks['memory_request'].fillna(tasks['memory_request'].median())
-    tasks['memory_mb'] = (tasks['memory_request'] * 2038 + 10).clip(10, 2048).astype(int)
+    # Memory MB: normalized memory request scaled to 10 - 2048 MB
+    mem_req = sampled['memory_request'].fillna(sampled['memory_request'].median()).clip(0.001, 1.0)
+    sampled['memory_mb'] = (mem_req * 2038 + 10).round().astype(int).clip(10, 2048)
 
-    # Arrival time: normalize submit_time to start from 0, in reasonable time units
-    min_time = tasks['submit_time'].min()
-    time_range = tasks['submit_time'].max() - min_time
-    tasks['arrival_time'] = ((tasks['submit_time'] - min_time) / time_range * 500).astype(int)
+    # Num threads: derived from CPU request allocation
+    sampled['num_threads'] = (cpu_req * 30 + 1).round().astype(int).clip(1, 16)
 
-    # num_threads: derive from cpu_request (higher CPU request ≈ more threads)
-    tasks['num_threads'] = (tasks['cpu_request'].fillna(0.025) * 30 + 1).clip(1, 16).astype(int)
+    # Arrival time: chronologically spaced arrivals based on submission time
+    min_time = sampled['submit_time'].min()
+    time_span = max(sampled['submit_time'].max() - min_time, 1)
+    sampled['arrival_time'] = ((sampled['submit_time'] - min_time) / time_span * (len(sampled) * 2)).round().astype(int)
 
-    # ─── Step 4: Create final dataset ────────────────────────────────
-    print("[4/5] Creating final dataset...")
+    # Sequential PIDs
+    sampled['pid'] = range(1, len(sampled) + 1)
 
-    # Assign sequential PIDs
-    tasks = tasks.sort_values('arrival_time').reset_index(drop=True)
-    tasks['pid'] = range(1, len(tasks) + 1)
+    final_cols = [
+        'pid', 'process_type', 'priority', 'arrival_time',
+        'cpu_burst', 'io_frequency', 'memory_mb', 'num_threads'
+    ]
+    final_df = sampled[final_cols].copy()
 
-    # Select and order columns to match our Process dataclass format
-    final = tasks[['pid', 'process_type', 'priority', 'arrival_time',
-                    'cpu_burst', 'io_frequency', 'memory_mb', 'num_threads']].copy()
+    # 5. Save output CSVs
+    print("\n[5/5] Saving processed Google Cluster Trace dataset...")
+    google_csv_path = os.path.join(data_dir, 'google_cluster_processes.csv')
+    processes_csv_path = os.path.join(data_dir, 'processes.csv')
 
-    # Take a manageable subset (2500 for training + 500 for testing = 3000)
-    # Randomly sample to get a diverse mix
-    if len(final) > 3000:
-        final = final.sample(n=3000, random_state=42).sort_values('arrival_time').reset_index(drop=True)
-        final['pid'] = range(1, len(final) + 1)
+    final_df.to_csv(google_csv_path, index=False)
+    final_df.to_csv(processes_csv_path, index=False)
 
-    # ─── Step 5: Save ────────────────────────────────────────────────
-    print("[5/5] Saving processed data...")
+    print(f"      [OK] Saved {len(final_df)} Google trace processes to:")
+    print(f"           - {google_csv_path}")
+    print(f"           - {processes_csv_path}")
 
-    output_path = 'data/processes.csv'
-    final.to_csv(output_path, index=False)
+    print("\nDataset Class Breakdown:")
+    for ptype, count in final_df['process_type'].value_counts().items():
+        print(f"  {ptype:<15}: {count:>5} ({count/len(final_df)*100:.1f}%)")
+    print(f"Burst Time: mean={final_df['cpu_burst'].mean():.1f}, min={final_df['cpu_burst'].min()}, max={final_df['cpu_burst'].max()}")
+    print(f"Priority:   mean={final_df['priority'].mean():.1f}, range=[{final_df['priority'].min()}, {final_df['priority'].max()}]")
+    print(f"Memory MB:  mean={final_df['memory_mb'].mean():.0f}, range=[{final_df['memory_mb'].min()}, {final_df['memory_mb'].max()}]")
 
-    print(f"\n[OK] Saved {len(final)} processes to {output_path}")
-    print(f"\n    Dataset Statistics:")
-    print(f"    -----------------------------------------")
-    print(f"    Process type distribution:")
-    for ptype, count in final['process_type'].value_counts().items():
-        print(f"      {ptype:<15} {count:>5} ({count/len(final)*100:.1f}%)")
-    print(f"    Burst time: mean={final['cpu_burst'].mean():.1f}, "
-          f"min={final['cpu_burst'].min()}, max={final['cpu_burst'].max()}, "
-          f"std={final['cpu_burst'].std():.1f}")
-    print(f"    Priority:   mean={final['priority'].mean():.1f}, "
-          f"range=[{final['priority'].min()}, {final['priority'].max()}]")
-    print(f"    Memory MB:  mean={final['memory_mb'].mean():.0f}, "
-          f"range=[{final['memory_mb'].min()}, {final['memory_mb'].max()}]")
-
-    print(f"\n    Data Source: Google Cluster Trace 2011")
-    print(f"    Reference:  Reiss et al., 'Google Cluster-Usage Traces'")
-    print(f"    URL: https://github.com/google/cluster-data")
-
-    return final
+    return final_df
 
 
 if __name__ == '__main__':

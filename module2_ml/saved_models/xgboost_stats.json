@@ -1,19 +1,19 @@
 {
-  "mae": 5.0927,
-  "rmse": 7.4411,
-  "r2": 0.7366,
+  "mae": 4.0167,
+  "rmse": 6.7695,
+  "r2": 0.7599,
   "feature_importances": {
-    "process_type_mixed": 0.6292,
-    "process_type_cpu_bound": 0.235,
-    "io_frequency": 0.0854,
-    "process_type_interactive": 0.0131,
-    "memory_mb": 0.0126,
-    "process_type_io_bound": 0.01,
-    "num_threads": 0.008,
-    "priority": 0.0067
+    "process_type_mixed": 0.6725,
+    "io_frequency": 0.0662,
+    "priority": 0.0623,
+    "num_threads": 0.052,
+    "memory_mb": 0.0405,
+    "process_type_io_bound": 0.039,
+    "process_type_interactive": 0.0347,
+    "process_type_cpu_bound": 0.0329
   },
-  "train_samples": 2000,
-  "test_samples": 500,
+  "train_samples": 3075,
+  "test_samples": 769,
   "params": {
     "n_estimators": 200,
     "max_depth": 6,

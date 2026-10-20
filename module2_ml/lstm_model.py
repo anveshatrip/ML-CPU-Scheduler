@@ -1,47 +1,3 @@
-"""
-lstm_model.py — LSTM Burst Time Predictor (Sequential)
-========================================================
-WHAT THIS DOES:
-    Trains an LSTM (Long Short-Term Memory) neural network to predict CPU
-    burst times by looking at SEQUENCES of recent processes.
-
-WHY LSTM (vs XGBoost):
-    XGBoost looks at each process INDEPENDENTLY — it sees one process's
-    features and predicts its burst. It has no concept of "what came before."
-
-    LSTM looks at a SEQUENCE of processes (e.g., the last 5 processes)
-    and predicts the next burst. It can learn temporal patterns like:
-    - "After 3 I/O-bound processes, a CPU-heavy one usually comes"
-    - "Interactive processes tend to arrive in bursts during work hours"
-    - "CPU-bound processes often follow other CPU-bound processes"
-
-    Think of it like weather forecasting: knowing yesterday's temperature
-    helps predict today's, even if both days have similar humidity.
-
-HOW LSTM WORKS (simplified):
-    An LSTM cell has a "memory" that it carries forward through the sequence.
-    At each step, it decides:
-    1. What to FORGET from previous memory (forget gate)
-    2. What NEW information to STORE (input gate)
-    3. What to OUTPUT as the prediction (output gate)
-
-    This lets it capture long-range dependencies — patterns that span
-    many time steps — which simpler models can't do.
-
-ARCHITECTURE:
-    Input (sequence of 5 processes × 8 features)
-    → LSTM layer (64 hidden units, 2 layers)
-    → Dropout (0.2, prevents overfitting)
-    → Fully Connected layer (64 → 32)
-    → ReLU activation
-    → Fully Connected layer (32 → 1)
-    → Output (predicted burst time)
-
-USAGE:
-    python -m module2_ml.lstm_model train
-    python -m module2_ml.lstm_model predict
-"""
-
 import os
 import json
 import numpy as np
@@ -84,24 +40,7 @@ LSTM_CONFIG = {
 # DATASET — Convert process data into sequences
 # ═══════════════════════════════════════════════════════════════════════
 class ProcessSequenceDataset(Dataset):
-    """
-    Converts a flat list of processes into overlapping sequences.
 
-    EXAMPLE (SEQUENCE_LENGTH=3):
-        Processes: [P1, P2, P3, P4, P5]
-        Becomes:
-            Sequence [P1, P2, P3] → Target: P4's burst
-            Sequence [P2, P3, P4] → Target: P5's burst
-
-    Each process is represented by its 8 features (4 numerical + 4 one-hot).
-    The target is the cpu_burst of the process AFTER the sequence.
-
-    WHY SEQUENCES?
-    This is what makes LSTM different from XGBoost. Instead of predicting
-    burst from a single process's features, we predict from the CONTEXT
-    of what processes ran recently. The LSTM learns patterns in the
-    sequence itself.
-    """
 
     def __init__(self, features: np.ndarray, targets: np.ndarray, seq_len: int):
         """
@@ -133,24 +72,7 @@ class ProcessSequenceDataset(Dataset):
 # LSTM NEURAL NETWORK
 # ═══════════════════════════════════════════════════════════════════════
 class BurstPredictorLSTM(nn.Module):
-    """
-    LSTM neural network for burst time prediction.
 
-    ARCHITECTURE:
-        Input: (batch_size, sequence_length, num_features)
-        ↓
-        LSTM layers (captures sequential patterns)
-        ↓
-        Dropout (prevents overfitting)
-        ↓
-        FC layer 1: hidden_size → 32 (compression)
-        ↓
-        ReLU activation (non-linearity)
-        ↓
-        FC layer 2: 32 → 1 (final prediction)
-        ↓
-        Output: predicted burst time (scalar)
-    """
 
     def __init__(self, input_size: int, hidden_size: int = 64,
                  num_layers: int = 2, dropout: float = 0.2):
@@ -234,17 +156,7 @@ def prepare_features(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, Standard
 # TRAINING
 # ═══════════════════════════════════════════════════════════════════════
 def train(data_path: str = 'data/processes.csv'):
-    """
-    Train the LSTM model.
-
-    STEP BY STEP:
-    1. Load and prepare data
-    2. Create sequence datasets
-    3. Build LSTM model
-    4. Train with Adam optimizer + MSE loss
-    5. Evaluate on test set
-    6. Save model, scaler, and stats
-    """
+ 
     print("=" * 60)
     print("  LSTM Burst Time Predictor — Training")
     print("=" * 60)
